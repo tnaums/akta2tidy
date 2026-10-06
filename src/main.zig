@@ -1,71 +1,52 @@
 const std = @import("std");
 const Io = std.Io;
 
-const akta2tidy = @import("akta2tidy");
-
 pub fn main(init: std.process.Init) !void {
-    // Prints to stderr, unbuffered, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    const io = init.io;
+    const allocator = init.gpa;
+//    const stdout = std.Io.File.stdout();
 
-    // This is appropriate for anything that lives as long as the process.
-    const arena: std.mem.Allocator = init.arena.allocator();
-
-    // Accessing command line arguments:
-    const args = try init.minimal.args.toSlice(arena);
-    for (args) |arg| {
-        std.log.info("arg: {s}", .{arg});
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len != 2) {
+        std.debug.print("Usage: {s} <filename>\n", .{args[0]});
+        return;
     }
 
-    // In order to do I/O operations need an `Io` instance.
-    const io = init.io;
+    const filepath = args[1];
+    const file = try std.Io.Dir.cwd().openFile(io, filepath, .{});
+    defer file.close(io);
 
-    // Stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
-    const stdout_writer = &stdout_file_writer.interface;
+    var cleaned:std.ArrayList(u8) = .empty;
+    defer cleaned.deinit(allocator);
 
-    try akta2tidy.printAnotherMessage(stdout_writer);
+    var buffer: [1024]u8 = undefined;
+    while (true) {
+        const bytes_read = file.readStreaming(io, &.{&buffer}) catch |err| {
+            if (err == error.EndOfStream) break;
+            return err;
+        };
+        if (bytes_read == 0) {
+            break;
+        }
 
-    try stdout_writer.flush(); // Don't forget to flush!
-}
+    const data = buffer[0..bytes_read];
+    
+    var i: u16 = 0;
+    while (i < bytes_read - 1) : (i += 2) {
+        try cleaned.append(allocator, data[i]);
+//        std.debug.print("{any}\n", .{buffer[i..i+2]});
+//        std.debug.print("{c}\n", .{buffer[i]});
+    }
 
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+    }
+    // Cleaned.items is heap allocated utf8 of entire file
+    const contents = cleaned.items;
+    std.debug.print("{s}\n", .{contents});
+    std.debug.print("First character is: {c}, encoded by {any}\n", .{ contents[0], contents[0] });
+    std.debug.print("Second character is: {c}, encoded by {any}\n", .{ contents[1], contents[1] });    
+    // next iterate lines by tokenizing with /r/n {13, 10}
 
-test "fuzz example" {
-    try std.testing.fuzz({}, testOne, .{});
-}
+    // iterate fields for each line by tokenizing with \t {9}
 
-fn testOne(context: void, smith: *std.testing.Smith) !void {
-    _ = context;
-    // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
 
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(u8) = .empty;
-    defer list.deinit(gpa);
-    while (!smith.eos()) switch (smith.value(enum { add_data, dup_data })) {
-        .add_data => {
-            const slice = try list.addManyAsSlice(gpa, smith.value(u4));
-            smith.bytes(slice);
-        },
-        .dup_data => {
-            if (list.items.len == 0) continue;
-            if (list.items.len > std.math.maxInt(u32)) return error.SkipZigTest;
-            const len = smith.valueRangeAtMost(u32, 1, @min(32, list.items.len));
-            const off = smith.valueRangeAtMost(u32, 0, @intCast(list.items.len - len));
-            try list.appendSlice(gpa, list.items[off..][0..len]);
-            try std.testing.expectEqualSlices(
-                u8,
-                list.items[off..][0..len],
-                list.items[list.items.len - len ..],
-            );
-        },
-    };
 }
