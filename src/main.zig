@@ -38,23 +38,33 @@ pub fn main(init: std.process.Init) !void {
             //        std.debug.print("{c}\n", .{buffer[i]});
         }
     }
-    // Cleaned.items is heap allocated utf8 of entire file
+    // contents points to heap allocated utf8 of entire file
     const contents = cleaned.items;
     // next iterate lines by tokenizing with \r\n {13, 10}
     var lines = std.mem.tokenizeAny(u8, contents, "\r\n");
     var counter: u16 = 0;
     while (counter < 8) : (counter += 1) {
+//    while (true) {
         if (lines.next()) |line| {
-            std.debug.print("{s}\n\n", .{line});
+//            std.debug.print("{s}\n\n", .{line});
             // iterate fields for each line by tokenizing with \t {9}
             var fields = std.mem.tokenizeScalar(u8, line, '\t');
             const x_mAU = fields.next() orelse unreachable;
             const y_mAU = fields.next() orelse unreachable;
+
             const x_mAU_d = std.fmt.parseFloat(f32, x_mAU) catch continue;
             const y_mAU_d = std.fmt.parseFloat(f32, y_mAU) catch continue;
 
             std.debug.print("mAU,{d},{d}\n", .{ x_mAU_d, y_mAU_d });
-            std.debug.print("========================================\n", .{});
+            const x_Cond = fields.next() orelse continue;
+            const y_Cond = fields.next() orelse continue;
+            std.debug.print("Cond,{s},{s}\n", .{ x_Cond, y_Cond });
+
+            const x_Conc = fields.next() orelse continue;
+            const y_Conc = fields.next() orelse continue;
+            std.debug.print("Conc,{s},{s}\n", .{ x_Conc, y_Conc });
+            
+//            std.debug.print("========================================\n", .{});
         } else {
             break;
         }
