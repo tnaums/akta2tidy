@@ -23,6 +23,7 @@ pub fn main(init: std.process.Init) !void {
     defer cleaned.deinit(allocator);
 
     var buffer: [1024]u8 = undefined;
+
     while (true) {
         const bytes_read = file.readStreaming(io, &.{&buffer}) catch |err| {
             if (err == error.EndOfStream) break;
@@ -47,6 +48,10 @@ pub fn main(init: std.process.Init) !void {
     // Iterate lines by tokenizing with \r\n
     var lines = std.mem.tokenizeAny(u8, contents, "\r\n");
     var writebuf: [124]u8 = undefined;
+
+    const headerPrint = try std.fmt.bufPrint(&writebuf, "group,ml,amount\n", .{});
+    try newfile.writeStreamingAll(io, headerPrint);
+    try stdout.writeStreamingAll(io, headerPrint);
     
     while (true) {
         if (lines.next()) |line| {
