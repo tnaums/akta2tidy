@@ -56,7 +56,8 @@ pub fn main(init: std.process.Init) !void {
     while (true) {
         if (lines.next()) |line| {
             // iterate fields for each line by tokenizing with \t {9}
-            var fields = std.mem.tokenizeScalar(u8, line, '\t');
+            //            var fields = std.mem.tokenizeScalar(u8, line, '\t');
+            var fields = std.mem.splitScalar(u8, line, '\t');
             const x_mAU = fields.next() orelse unreachable;
             const y_mAU = fields.next() orelse unreachable;
 
@@ -70,13 +71,19 @@ pub fn main(init: std.process.Init) !void {
 
             const x_Cond = fields.next() orelse continue;
             const y_Cond = fields.next() orelse continue;
-            const condPrint = try std.fmt.bufPrint(&writebuf, "Cond,{s},{s}\n", .{ x_Cond, y_Cond });
+
+            const x_Cond_d = std.fmt.parseFloat(f32, x_Cond) catch continue;
+            const y_Cond_d = std.fmt.parseFloat(f32, y_Cond) catch continue;
+            const condPrint = try std.fmt.bufPrint(&writebuf, "Cond,{d},{d}\n", .{ x_Cond_d, y_Cond_d });
             try newfile.writeStreamingAll(io, condPrint);
             try stdout.writeStreamingAll(io, condPrint);
 
             const x_Conc = fields.next() orelse continue;
             const y_Conc = fields.next() orelse continue;
-            const concPrint = try std.fmt.bufPrint(&writebuf, "Conc,{s},{s}\n", .{ x_Conc, y_Conc });
+
+            const x_Conc_d = std.fmt.parseFloat(f32, x_Conc) catch continue;
+            const y_Conc_d = std.fmt.parseFloat(f32, y_Conc) catch continue;
+            const concPrint = try std.fmt.bufPrint(&writebuf, "Conc,{d},{d}\n", .{ x_Conc_d, y_Conc_d });
             try newfile.writeStreamingAll(io, concPrint);
             try stdout.writeStreamingAll(io, concPrint);
 
