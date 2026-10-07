@@ -4,7 +4,7 @@ const Io = std.Io;
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
-    //    const stdout = std.Io.File.stdout();
+    const stdout = std.Io.File.stdout();
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) {
@@ -16,6 +16,9 @@ pub fn main(init: std.process.Init) !void {
     const file = try std.Io.Dir.cwd().openFile(io, filepath, .{});
     defer file.close(io);
 
+    const newfile = try std.Io.Dir.cwd().createFile(io, "output/output.csv", .{});
+    defer newfile.close(io);
+    
     var cleaned: std.ArrayList(u8) = .empty;
     defer cleaned.deinit(allocator);
 
@@ -32,7 +35,7 @@ pub fn main(init: std.process.Init) !void {
         const data = buffer[0..bytes_read];
 
         var i: u16 = 0;
-        while (i < bytes_read - 1) : (i += 2) {
+        while (i < bytes_read - 1) : (i += 2) { // keeps first byte and ignores empty
             try cleaned.append(allocator, data[i]);
             //        std.debug.print("{any}\n", .{buffer[i..i+2]});
             //        std.debug.print("{c}\n", .{buffer[i]});
@@ -40,33 +43,42 @@ pub fn main(init: std.process.Init) !void {
     }
     // contents points to heap allocated utf8 of entire file
     const contents = cleaned.items;
-    // next iterate lines by tokenizing with \r\n {13, 10}
+
+    // Iterate lines by tokenizing with \r\n
     var lines = std.mem.tokenizeAny(u8, contents, "\r\n");
-    var counter: u16 = 0;
-    while (counter < 8) : (counter += 1) {
-//    while (true) {
+    var writebuf: [124]u8 = undefined;
+    
+    while (true) {
         if (lines.next()) |line| {
-//            std.debug.print("{s}\n\n", .{line});
             // iterate fields for each line by tokenizing with \t {9}
             var fields = std.mem.tokenizeScalar(u8, line, '\t');
             const x_mAU = fields.next() orelse unreachable;
             const y_mAU = fields.next() orelse unreachable;
 
+            // Converting first two columns to f32 ensures header lines are skipped
             const x_mAU_d = std.fmt.parseFloat(f32, x_mAU) catch continue;
             const y_mAU_d = std.fmt.parseFloat(f32, y_mAU) catch continue;
 
-            std.debug.print("mAU,{d},{d}\n", .{ x_mAU_d, y_mAU_d });
+            const absPrint = try std.fmt.bufPrint(&writebuf, "mAU,{d},{d}\n", .{ x_mAU_d, y_mAU_d });
+            try newfile.writeStreamingAll(io, absPrint);
+            try stdout.writeStreamingAll(io, absPrint);
+
             const x_Cond = fields.next() orelse continue;
             const y_Cond = fields.next() orelse continue;
-            std.debug.print("Cond,{s},{s}\n", .{ x_Cond, y_Cond });
+            const condPrint = try std.fmt.bufPrint(&writebuf, "Cond,{s},{s}\n", .{ x_Cond, y_Cond });
+            try newfile.writeStreamingAll(io, condPrint);
+            try stdout.writeStreamingAll(io, condPrint);
 
             const x_Conc = fields.next() orelse continue;
             const y_Conc = fields.next() orelse continue;
-            std.debug.print("Conc,{s},{s}\n", .{ x_Conc, y_Conc });
-            
-//            std.debug.print("========================================\n", .{});
+            const concPrint = try std.fmt.bufPrint(&writebuf, "Conc,{s},{s}\n", .{ x_Conc, y_Conc });
+            try newfile.writeStreamingAll(io, concPrint);
+            try stdout.writeStreamingAll(io, concPrint);
+
         } else {
             break;
         }
     }
+    std.debug.print("\n", .{});
+    std.log.info("Output also written to ./output/output.csv\n", .{});
 }
